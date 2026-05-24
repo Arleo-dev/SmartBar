@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  smartbar-db:
+    image: postgres:latest
+    container_name: smartbar-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: parbardbshake
+      POSTGRES_DB: smartbar_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+  smartbar-cache:
+    image: redis:latest
+    container_name: smartbar-redis
+    ports:
+      - "6379:6379"
+
+  smartbar-mq:
+    image: rabbitmq:3-management
+    container_name: smartbar-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  postgres_data:
