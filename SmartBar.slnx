@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="SmartBar.Api/SmartBar.Api.csproj" />
+  <Project Path="SmartBar.Application.Tests/SmartBar.Application.Tests.csproj" />
+  <Project Path="SmartBar.Application/SmartBar.Application.csproj" />
+  <Project Path="SmartBar.Domain/SmartBar.Domain.csproj" />
+  <Project Path="SmartBar.Infrastructure/SmartBar.Infrastructure.csproj" />
+</Solution>
