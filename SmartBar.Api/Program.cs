@@ -1,57 +1,77 @@
 using FluentValidation;
-using MassTransit;
+using Humanizer;
+using JasperFx.CodeGeneration;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Scalar.AspNetCore;
 using SmartBar.Api.Middleware;
 using SmartBar.Application;
 using SmartBar.Application.Behaviors;
+using SmartBar.Application.Cocktails.Queries;
 using SmartBar.Application.Interfaces;
 using SmartBar.Infrastructure;
-using SmartBar.Infrastructure.Messaging;
+using Wolverine;
+using Wolverine.EntityFrameworkCore;
+using Wolverine.ErrorHandling;
+using Wolverine.Postgresql;
+using Wolverine.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("SmartBarConnection");
+var redisConnection = builder.Configuration.GetConnectionString("RedisConnection");
 
+builder.Services.AddScoped<GetCocktailsQueryHandler>();
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(AssemblyReference).Assembly);
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
 });
 
-builder.Services.AddValidatorsFromAssembly(typeof(AssemblyReference).Assembly);
+builder.Services.AddScoped<IRequestHandler<GetCocktailsQuery, IEnumerable<CocktailResponse>>>(provider =>
+    new CachedGetCocktailsQueryHandler(
+        provider.GetRequiredService<GetCocktailsQueryHandler>(),
+        provider.GetRequiredService<IDistributedCache>()
+    ));
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddValidatorsFromAssembly(typeof(AssemblyReference).Assembly);
 
 builder.Services.AddScoped<IApplicationDbContext>(provider =>
     provider.GetRequiredService<ApplicationDbContext>());
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = builder.Configuration.GetConnectionString("RedisConnection");
+    options.Configuration = redisConnection;
     options.InstanceName = "SmartBar_";
 });
 
-builder.Services.AddMassTransit(x =>
+builder.Host.UseWolverine(opts =>
 {
-    x.AddConsumer<IngredientCreatedConsumer>();
-    x.UsingRabbitMq((context, cfg) =>
-    {
-        cfg.Host("localhost", "/", h =>
-        {
-            h.Username("guest");
-            h.Password("guest");
-        });
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
 
-        cfg.ConfigureEndpoints(context);
-    });
+    opts.PersistMessagesWithPostgresql(connectionString);
+
+    opts.UseEntityFrameworkCoreTransactions();
+
+    opts.UseRabbitMq(new Uri("amqp://guest:guest@localhost:5672/")).AutoProvision();
+
+    opts.ListenToRabbitQueue("ingredient-created-queue").UseDurableInbox();
+    opts.ListenToRabbitQueue("cocktail-created-queue").UseDurableInbox();
+
+    opts.Policies.OnException<Exception>()
+        .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+
+    opts.PublishAllMessages().ToRabbitExchange("smartbar-exchange");
 });
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
-
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
@@ -70,24 +90,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler();
-
 app.UseHttpsRedirection();
-
 app.MapControllers();
-
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        await context.Database.MigrateAsync();
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "Auto migration update failed");
-    }
-}
 
 app.Run();

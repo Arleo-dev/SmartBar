@@ -1,9 +1,9 @@
 ﻿using MediatR;
-using MassTransit; 
-using SmartBar.Domain.Entities;
-using SmartBar.Application.Interfaces;
-using SmartBar.Application.Ingredients.Events;
 using Microsoft.Extensions.Caching.Distributed;
+using SmartBar.Application.Ingredients.Events;
+using SmartBar.Application.Interfaces;
+using SmartBar.Domain.Entities;
+using Wolverine; // 👈 Замість MassTransit
 
 namespace SmartBar.Application.Ingredients.Commands;
 
@@ -13,16 +13,16 @@ public class CreateIngredientCommandHandler : IRequestHandler<CreateIngredientCo
 {
     private readonly IApplicationDbContext _context;
     private readonly IDistributedCache _cache;
-    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IMessageBus _bus;
 
     public CreateIngredientCommandHandler(
         IApplicationDbContext context,
         IDistributedCache cache,
-        IPublishEndpoint publishEndpoint)
+        IMessageBus bus)
     {
         _context = context;
         _cache = cache;
-        _publishEndpoint = publishEndpoint;
+        _bus = bus;
     }
 
     public async Task<Guid> Handle(CreateIngredientCommand request, CancellationToken cancellationToken)
@@ -38,7 +38,8 @@ public class CreateIngredientCommandHandler : IRequestHandler<CreateIngredientCo
         await _context.SaveChangesAsync(cancellationToken);
 
         await _cache.RemoveAsync("ingredients_list", cancellationToken);
-        await _publishEndpoint.Publish(new IngredientCreatedEvent(ingredient.IngredientId, ingredient.Name), cancellationToken);
+
+        await _bus.PublishAsync(new IngredientCreatedEvent(ingredient.IngredientId, ingredient.Name));
 
         return ingredient.IngredientId;
     }

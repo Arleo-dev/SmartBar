@@ -1,12 +1,11 @@
-﻿using MassTransit;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using NSubstitute;
 using SmartBar.Application.Ingredients.Commands;
 using SmartBar.Application.Ingredients.Events;
 using SmartBar.Application.Interfaces;
 using SmartBar.Domain.Entities;
-using Xunit;
+using Wolverine;
 
 namespace SmartBar.Application.Tests;
 
@@ -14,16 +13,16 @@ public class CreateIngredientCommandHandlerTests
 {
     private readonly IApplicationDbContext _contextMock;
     private readonly IDistributedCache _cacheMock;
-    private readonly IPublishEndpoint _publishEndpointMock;
+    private readonly IMessageBus _busMock;
     private readonly CreateIngredientCommandHandler _handler;
 
     public CreateIngredientCommandHandlerTests()
     {
         _contextMock = Substitute.For<IApplicationDbContext>();
         _cacheMock = Substitute.For<IDistributedCache>();
-        _publishEndpointMock = Substitute.For<IPublishEndpoint>();
+        _busMock = Substitute.For<IMessageBus>();
         _contextMock.Ingredients.Returns(Substitute.For<DbSet<Ingredient>>());
-        _handler = new CreateIngredientCommandHandler(_contextMock, _cacheMock, _publishEndpointMock);
+        _handler = new CreateIngredientCommandHandler(_contextMock, _cacheMock, _busMock);
     }
 
     [Fact]
@@ -43,8 +42,7 @@ public class CreateIngredientCommandHandlerTests
 
         await _cacheMock.Received(1).RemoveAsync("ingredients_list", cancellationToken);
 
-        await _publishEndpointMock.Received(1).Publish(
-            Arg.Is<IngredientCreatedEvent>(e => e.Name == command.Name && e.IngredientId == resultId),
-            cancellationToken);
+        await _busMock.Received(1).PublishAsync(
+            Arg.Is<IngredientCreatedEvent>(e => e.Name == command.Name && e.IngredientId == resultId));
     }
 }
