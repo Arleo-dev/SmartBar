@@ -1,9 +1,7 @@
 using FluentValidation;
 using Humanizer;
 using JasperFx.CodeGeneration;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 using Scalar.AspNetCore;
 using SmartBar.Api.Middleware;
 using SmartBar.Application;
@@ -12,7 +10,6 @@ using SmartBar.Application.Cocktails.Queries;
 using SmartBar.Application.Interfaces;
 using SmartBar.Infrastructure;
 using Wolverine;
-using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.Postgresql;
 using Wolverine.RabbitMQ;
@@ -22,27 +19,21 @@ var connectionString = builder.Configuration.GetConnectionString("SmartBarConnec
 var redisConnection = builder.Configuration.GetConnectionString("RedisConnection");
 
 builder.Services.AddScoped<GetCocktailsQueryHandler>();
+builder.Services.AddScoped<CachedGetCocktailsQueryHandler>();
+
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(AssemblyReference).Assembly);
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
 });
-
-builder.Services.AddScoped<IRequestHandler<GetCocktailsQuery, IEnumerable<CocktailResponse>>>(provider =>
-    new CachedGetCocktailsQueryHandler(
-        provider.GetRequiredService<GetCocktailsQueryHandler>(),
-        provider.GetRequiredService<IDistributedCache>()
-    ));
-
 builder.Services.AddValidatorsFromAssembly(typeof(AssemblyReference).Assembly);
 
-builder.Services.AddScoped<IApplicationDbContext>(provider =>
-    provider.GetRequiredService<ApplicationDbContext>());
-
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
+builder.Services.AddScoped<IApplicationDbContext, ApplicationDbContext>();
 builder.Services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
@@ -53,25 +44,35 @@ builder.Services.AddStackExchangeRedisCache(options =>
 builder.Host.UseWolverine(opts =>
 {
     opts.ApplicationAssembly = typeof(Program).Assembly;
-    opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.CocktailCreatedHandler).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.DecreaseInventoryHandler).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.IngredientCreatedHandler).Assembly);
 
-    opts.PersistMessagesWithPostgresql(connectionString);
+    if (builder.Environment.IsDevelopment())
+    {
+        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+    }
+    else
+    {
+        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+    }
 
-    opts.UseEntityFrameworkCoreTransactions();
-
+    opts.PersistMessagesWithPostgresql(connectionString ?? throw new InvalidOperationException("Connection string not found."));
     opts.UseRabbitMq(new Uri("amqp://guest:guest@localhost:5672/")).AutoProvision();
 
-    opts.ListenToRabbitQueue("ingredient-created-queue").UseDurableInbox();
     opts.ListenToRabbitQueue("cocktail-created-queue").UseDurableInbox();
+    opts.ListenToRabbitQueue("ingredient-created-queue").UseDurableInbox();
+    opts.ListenToRabbitQueue("inventory-cocktail-created-queue").UseDurableInbox();
+
+    opts.PublishAllMessages().ToRabbitTopics("smartbar-exchange");
 
     opts.Policies.OnException<Exception>()
         .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
-
-    opts.PublishAllMessages().ToRabbitExchange("smartbar-exchange");
 });
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 

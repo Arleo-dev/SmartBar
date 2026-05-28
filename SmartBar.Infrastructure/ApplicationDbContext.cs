@@ -1,9 +1,11 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using SmartBar.Application.Interfaces;
 using SmartBar.Domain.Entities;
+using Wolverine.Attributes;
 
 namespace SmartBar.Infrastructure;
 
+[WolverineIgnore]
 public class ApplicationDbContext : DbContext, IApplicationDbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
@@ -13,6 +15,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Ingredient> Ingredients => Set<Ingredient>();
     public DbSet<Cocktail> Cocktails => Set<Cocktail>();
     public DbSet<CocktailIngredient> CocktailIngredients => Set<CocktailIngredient>();
+    public DbSet<Inventory> Inventories => Set<Inventory>();
+
     public DbSet<InboxMessage> InboxMessages => Set<InboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -31,6 +35,14 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
             entity.Property(c => c.Name).IsRequired().HasMaxLength(100);
             entity.Property(c => c.Description).HasMaxLength(500);
             entity.HasIndex(c => c.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<Inventory>(entity =>
+        {
+            entity.HasKey(c => c.InventoryId);
+            entity.Property(c => c.IngredientId).IsRequired();
+            entity.Property(c => c.AvailableAmount).HasPrecision(18, 2);
+            entity.Property(c => c.Unit).HasMaxLength(10);
         });
 
         modelBuilder.Entity<CocktailIngredient>(entity =>

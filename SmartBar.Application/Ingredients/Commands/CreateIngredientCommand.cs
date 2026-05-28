@@ -3,7 +3,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using SmartBar.Application.Ingredients.Events;
 using SmartBar.Application.Interfaces;
 using SmartBar.Domain.Entities;
-using Wolverine; // 👈 Замість MassTransit
+using Wolverine;
 
 namespace SmartBar.Application.Ingredients.Commands;
 
@@ -36,11 +36,11 @@ public class CreateIngredientCommandHandler : IRequestHandler<CreateIngredientCo
 
         _context.Ingredients.Add(ingredient);
         await _context.SaveChangesAsync(cancellationToken);
-
+        
         await _cache.RemoveAsync("ingredients_list", cancellationToken);
 
         await _bus.PublishAsync(new IngredientCreatedEvent(ingredient.IngredientId, ingredient.Name));
-
+        
         return ingredient.IngredientId;
     }
 }
