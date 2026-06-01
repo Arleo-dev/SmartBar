@@ -29,7 +29,6 @@ public class CreateIngredientCommandHandler : IRequestHandler<CreateIngredientCo
     {
         var ingredient = new Ingredient
         {
-            IngredientId = Guid.NewGuid(),
             Name = request.Name,
             Category = request.Category
         };

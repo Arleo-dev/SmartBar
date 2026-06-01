@@ -44,7 +44,7 @@ public class CocktailCreatedHandler
             _logger.LogWarning("Cocktail with ID {Id} was not found in the database.", message.CocktailId);
             return;
         }
-        _logger.LogInformation("Cocktail with ID {Id} was not found in the database.", message.CocktailId);
+        _logger.LogInformation("Cocktail with ID {Id} was found in the database.", message.CocktailId);
         var ingredients = cocktail.CocktailIngredients.ToList();
 
         _logger.LogInformation("Found {Count} ingredients for cocktail '{Name}'", ingredients.Count, cocktail.Name);

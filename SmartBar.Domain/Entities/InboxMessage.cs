@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SmartBar.Domain.Entities;
+﻿namespace SmartBar.Domain.Entities;
 
 public class InboxMessage
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; private set; } = Guid.CreateVersion7();
     public string Name { get; set; }
     public DateTime ProcessedAtUtc { get; set; }
 }

@@ -65,9 +65,11 @@ builder.Host.UseWolverine(opts =>
     opts.ListenToRabbitQueue("inventory-cocktail-created-queue").UseDurableInbox();
 
     opts.PublishAllMessages().ToRabbitTopics("smartbar-exchange");
+    opts.OnException<NullReferenceException>().MoveToErrorQueue();
+    opts.OnException<ArgumentNullException>().MoveToErrorQueue();
 
-    opts.Policies.OnException<Exception>()
-        .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
+    opts.OnException<Exception>()
+        .RetryWithCooldown(2.Seconds(), 5.Seconds(), 10.Seconds());
 });
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();

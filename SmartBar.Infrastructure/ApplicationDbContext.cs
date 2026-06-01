@@ -69,26 +69,21 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
         var bittersId = Guid.Parse("b3333333-3333-3333-3333-333333333333");
 
         modelBuilder.Entity<Ingredient>().HasData(
-            new Ingredient { IngredientId = bourbonId, Name = "Bourbon", Category = "Whiskey" },
-            new Ingredient { IngredientId = vermouthId, Name = "Sweet Vermouth", Category = "Vermouth" },
-            new Ingredient { IngredientId = bittersId, Name = "Angostura Bitters", Category = "Bitters" }
+            new { IngredientId = bourbonId, Name = "Bourbon", Category = "Whiskey" },
+            new { IngredientId = vermouthId, Name = "Sweet Vermouth", Category = "Vermouth" },
+            new { IngredientId = bittersId, Name = "Angostura Bitters", Category = "Bitters" }
         );
 
         var manhattanId = Guid.Parse("a4444444-4444-4444-4444-444444444444");
 
         modelBuilder.Entity<Cocktail>().HasData(
-            new Cocktail
-            {
-                CocktailId = manhattanId,
-                Name = "Manhattan",
-                Description = "Classic cocktail made with rye or bourbon, sweet vermouth, and bitters."
-            }
+            new { CocktailId = manhattanId, Name = "Manhattan",RecipeSteps=string.Empty, Description = "Classic cocktail made with rye or bourbon, sweet vermouth, and bitters." }
         );
 
         modelBuilder.Entity<CocktailIngredient>().HasData(
-            new CocktailIngredient { CocktailId = manhattanId, IngredientId = bourbonId, Amount = 60, Unit = "ml" },
-            new CocktailIngredient { CocktailId = manhattanId, IngredientId = vermouthId, Amount = 30, Unit = "ml" },
-            new CocktailIngredient { CocktailId = manhattanId, IngredientId = bittersId, Amount = 2, Unit = "dashes" }
+            new { CocktailId = manhattanId, IngredientId = bourbonId, Amount = 60m, Unit = "ml" },
+            new { CocktailId = manhattanId, IngredientId = vermouthId, Amount = 30m, Unit = "ml" },
+            new { CocktailId = manhattanId, IngredientId = bittersId, Amount = 2m, Unit = "dashes" }
         );
 #endif
     }

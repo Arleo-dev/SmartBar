@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace SmartBar.Domain.Entities
+﻿namespace SmartBar.Domain.Entities
 {
     public class CocktailIngredient
     {

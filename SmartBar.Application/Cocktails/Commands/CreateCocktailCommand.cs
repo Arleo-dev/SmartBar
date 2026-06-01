@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SmartBar.Application.Cocktails.Events;
 using SmartBar.Application.Interfaces;
 using SmartBar.Domain.Entities;
-using Wolverine; // 👈 Замість MassTransit
+using Wolverine;
 
 namespace SmartBar.Application.Cocktails.Commands;
 
@@ -40,7 +40,6 @@ public class CreateCocktailCommandHandler : IRequestHandler<CreateCocktailComman
 
         var cocktail = new Cocktail
         {
-            CocktailId = Guid.NewGuid(),
             Name = request.Name,
             Description = request.Description
         };
