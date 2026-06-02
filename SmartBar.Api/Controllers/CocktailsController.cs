@@ -16,14 +16,21 @@ public class CocktailsController : ControllerBase
         _mediator = mediator;
     }
 
-    [HttpPost]
+    [HttpPost("create")]
     public async Task<IActionResult> Create([FromBody] CreateCocktailCommand command)
     {
         var result = await _mediator.Send(command);
         return Ok(result);
     }
 
-    [HttpGet]
+    [HttpPost("order")]
+    public async Task<IActionResult> Order([FromBody] OrderCocktailCommand command)
+    {
+        await _mediator.Send(command);
+        return Ok();
+    }
+
+    [HttpGet("get-all")]
     public async Task<IActionResult> GetAll()
     {
         var result = await _mediator.Send(new GetCocktailsQuery());

@@ -22,8 +22,7 @@ public class Inventory
     {
         if (AvailableAmount < amount)
         {
-            AvailableAmount -= amount;
-            return;
+            throw new InvalidOperationException($"Not enough stock available to decrease by the specified amount. Available: {AvailableAmount}, Requested: {amount}");
         }
 
         AvailableAmount -= amount;

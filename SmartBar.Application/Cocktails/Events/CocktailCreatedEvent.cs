@@ -2,8 +2,5 @@
 
 namespace SmartBar.Application.Cocktails.Events
 {
-    public record CocktailCreatedEvent(Guid CocktailId, string Name) : INotification
-    {
-        
-    }
+    public record CocktailCreatedEvent(Guid CocktailId, string Name) : INotification;
 }

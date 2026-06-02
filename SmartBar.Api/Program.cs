@@ -6,8 +6,10 @@ using Scalar.AspNetCore;
 using SmartBar.Api.Middleware;
 using SmartBar.Application;
 using SmartBar.Application.Behaviors;
+using SmartBar.Application.Cocktails.Events;
 using SmartBar.Application.Cocktails.Queries;
 using SmartBar.Application.Interfaces;
+using SmartBar.Domain.Entities;
 using SmartBar.Infrastructure;
 using Wolverine;
 using Wolverine.ErrorHandling;
@@ -43,11 +45,15 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 builder.Host.UseWolverine(opts =>
 {
-    opts.ApplicationAssembly = typeof(Program).Assembly;
-    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.CocktailCreatedHandler).Assembly);
-    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.DecreaseInventoryHandler).Assembly);
-    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.IngredientCreatedHandler).Assembly);
+    var cocktailCreatedQueue = "cocktail-created-queue";
+    var ingredientCreatedQueue = "ingredient-created-queue";
+    var cocktailOrderedQueue = "cocktail-ordered-queue";
 
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.CocktailOrderedHandler).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.CocktailCreatedHandler).Assembly);
+    opts.Discovery.IncludeAssembly(typeof(SmartBar.Infrastructure.Messaging.IngredientCreatedHandler).Assembly);
+    
     if (builder.Environment.IsDevelopment())
     {
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
@@ -58,14 +64,22 @@ builder.Host.UseWolverine(opts =>
     }
 
     opts.PersistMessagesWithPostgresql(connectionString ?? throw new InvalidOperationException("Connection string not found."));
-    opts.UseRabbitMq(new Uri("amqp://guest:guest@localhost:5672/")).AutoProvision();
+    var rabbitConfig = opts.UseRabbitMq(new Uri("amqp://guest:guest@localhost:5672/")).AutoProvision();
+    rabbitConfig.DeclareQueue(cocktailCreatedQueue);
+    rabbitConfig.DeclareQueue(ingredientCreatedQueue);
+    rabbitConfig.DeclareQueue(cocktailOrderedQueue);
 
-    opts.ListenToRabbitQueue("cocktail-created-queue").UseDurableInbox();
-    opts.ListenToRabbitQueue("ingredient-created-queue").UseDurableInbox();
-    opts.ListenToRabbitQueue("inventory-cocktail-created-queue").UseDurableInbox();
+    opts.ListenToRabbitQueue(cocktailCreatedQueue).UseDurableInbox();
+    opts.ListenToRabbitQueue(ingredientCreatedQueue).UseDurableInbox();
+    opts.ListenToRabbitQueue(cocktailOrderedQueue).UseDurableInbox();
+
+    opts.PublishMessage<CocktailCreatedEvent>().ToRabbitQueue(cocktailCreatedQueue);
+    opts.PublishMessage<CocktailOrderedEvent>().ToRabbitQueue(cocktailOrderedQueue);
 
     opts.PublishAllMessages().ToRabbitTopics("smartbar-exchange");
+
     opts.OnException<NullReferenceException>().MoveToErrorQueue();
+    opts.OnException<InvalidOperationException>().MoveToErrorQueue();
     opts.OnException<ArgumentNullException>().MoveToErrorQueue();
 
     opts.OnException<Exception>()
@@ -96,4 +110,33 @@ app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.MapControllers();
 
+await UpdateInventoryAsync(app);
+
 app.Run();
+
+static async Task UpdateInventoryAsync(WebApplication app)
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+        using var context = await contextFactory.CreateDbContextAsync();
+
+        var existingInventoryIngredientIds = await context.Inventories
+            .Select(x => x.IngredientId)
+            .ToListAsync();
+
+        var missingIngredients = await context.Ingredients
+            .Where(x => !existingInventoryIngredientIds.Contains(x.IngredientId))
+            .ToListAsync();
+
+        if (missingIngredients.Any())
+        {
+            foreach (var ingredient in missingIngredients)
+            {
+                context.Inventories.Add(new Inventory(ingredient.IngredientId, 0, "ml"));
+            }
+
+            await context.SaveChangesAsync();
+        }
+    }
+}

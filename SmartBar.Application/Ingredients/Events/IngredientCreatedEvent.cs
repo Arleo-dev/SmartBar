@@ -1,6 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Wolverine.Attributes;
 
-namespace SmartBar.Application.Ingredients.Events;
-public record IngredientCreatedEvent(Guid IngredientId, string Name);
+namespace SmartBar.Application.Ingredients.Events
+{
+    [MessageIdentity("ingredient-created-queue")]
+    public record IngredientCreatedEvent(Guid IngredientId, string Name);
+}
